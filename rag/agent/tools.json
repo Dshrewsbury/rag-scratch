@@ -1,0 +1,74 @@
+[
+  {
+      "type": "function",
+      "function": {
+          "name": "search",
+          "description": "Search the knowledge base for relevant information",
+          "parameters": {
+              "type": "object",
+              "properties": {
+                  "query": {
+                      "type": "string",
+                      "description": "The search query"
+                  },
+                  "limit": {
+                      "type": "integer",
+                      "description": "Maximum number of results (default: 3)"
+                  }
+              },
+              "required": ["query"]
+          }
+      }
+  },
+  {
+      "type": "function",
+      "function": {
+          "name": "analyze_document",
+          "description": "Extract key information from a document or text passage",
+          "parameters": {
+              "type": "object",
+              "properties": {
+                  "text": {
+                      "type": "string",
+                      "description": "The text to analyze"
+                  }
+              },
+              "required": ["text"]
+          }
+      }
+  },
+  {
+      "type": "function",
+      "function": {
+          "name": "improve_query",
+          "description": "Reformulate a search query to improve retrieval results",
+          "parameters": {
+              "type": "object",
+              "properties": {
+                  "query": {
+                      "type": "string",
+                      "description": "The original query to improve"
+                  }
+              },
+              "required": ["query"]
+          }
+      }
+  },
+  {
+      "type": "function",
+      "function": {
+          "name": "answer_factual",
+          "description": "Answer a factual question without searching when confident",
+          "parameters": {
+              "type": "object",
+              "properties": {
+                  "question": {
+                      "type": "string",
+                      "description": "The factual question to answer"
+                  }
+              },
+              "required": ["question"]
+          }
+      }
+  }
+]

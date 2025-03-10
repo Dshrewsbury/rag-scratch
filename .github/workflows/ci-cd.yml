@@ -1,0 +1,69 @@
+name: Docker Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build and cache server
+        uses: docker/build-push-action@v4
+        with:
+          context: ./
+          file: ./app/Dockerfile
+          push: false
+          load: true
+          tags: server:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and cache UI
+        uses: docker/build-push-action@v4
+        with:
+          context: ./
+          file: ./ui/Dockerfile
+          push: false
+          load: true
+          tags: frontend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      - name: Start services
+        run: |
+          docker compose -f compose.yaml up -d
+      
+      - name: Run unit tests
+        run: |
+          docker compose exec -T server pytest /app/tests/unit/ -v
+      
+      - name: Run integration tests
+        run: |
+          docker compose exec -T server pytest /app/tests/integration/ -v
+      
+      - name: Collect logs on failure
+        if: failure()
+        run: |
+          docker compose logs > test-logs.txt
+      
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs
+          path: test-logs.txt
+      
+      - name: Tear down environment
+        run: |
+          docker compose down
