@@ -7,7 +7,7 @@ from litellm import completion
 
 # Import your existing components
 # Assuming these are in the correct path - adjust imports as needed
-from core.processing.chunking.recursive_chunker import parse_markdown_with_metadata
+from rag.processing.chunking.recursive_chunker import parse_markdown_with_metadata
 
 
 # ====================================

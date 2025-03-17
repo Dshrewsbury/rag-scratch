@@ -18,3 +18,4 @@ chat_history.db
 !/assets/models/.gitkeep
 fr.sh
 repo_structure.yaml
+bob.py

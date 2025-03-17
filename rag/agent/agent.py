@@ -4,13 +4,32 @@ import asyncio
 import logging
 import traceback
 import json
+import os
 from pathlib import Path
-from litellm import acompletion
+from litellm import acompletion, success_callback, max_budget
+from litellm.utils import trim_messages
 from typing import Dict, List, Any, AsyncIterator, Optional
 from rag.retrieval.vector_store import VectorStore
 from rag.processing.embedding.embedding_generator import EmbeddingGenerator
 from rag.memory.memory_database import MemoryDatabase
 from config.settings import LLM_MODEL_PATH
+
+# track_cost_callback
+def track_cost_callback(
+    kwargs,                 # kwargs to completion
+    completion_response,    # response from completion
+    start_time, end_time    # start/end time
+):
+    try:
+      response_cost = kwargs.get("response_cost", 0)
+      print("streaming response_cost", response_cost)
+    except:
+        pass
+
+# set callback
+success_callback = [track_cost_callback] # set custom callback function
+max_budget = 1.0 # budget of a dollar
+# use litellm's BudgetManager for user-based rate limiting
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -35,13 +54,16 @@ class Agent:
 
         # Set default model config if not provided
         self.model_config = model_config or {
-            'model': 'gpt-4o',
+            'model': 'gpt-4o-mini',
         }
         
         # Initialize components
         self.vector_store = VectorStore()
         self.embedding_generator = EmbeddingGenerator()
         self.memory_db = MemoryDatabase()
+
+        print("HEYO")
+        print(self.memory_db.db_path)
 
         # Define tool mapping
         self.tool_map = {
@@ -87,14 +109,18 @@ class Agent:
         try:
             # Log request 
             logger.info(f"Generating streaming response with model: {self.model_config.get('model')}")
-            
+            model = self.model_config['model']
+
             # Get the response stream
             response = await acompletion(
-                model=self.model_config['model'],
-                messages=messages,
+                model="gpt-4o-mini",
+                base_url="https://models.inference.ai.azure.com",
+                messages=trim_messages(messages, model),
                 stream=True,
                 tools=self.tools,
-                max_retries=1
+                tool_choice="auto",
+                max_retries=1,
+                num_retries=1
             )
 
             # Track if we've seen tool calls in this response
@@ -102,6 +128,7 @@ class Agent:
             
             # Iterate through streaming chunks asynchronously
             async for chunk in response:
+                
                 # Process content
                 if chunk.choices and hasattr(chunk.choices[0], 'delta') and chunk.choices[0].delta.content:
                     token = chunk.choices[0].delta.content
@@ -109,7 +136,7 @@ class Agent:
                     yield token
                 
                 # Process tool calls
-                if chunk.choices and hasattr(chunk.choices[0], 'delta') and hasattr(chunk.choices[0].delta, 'tool_calls'):
+                if chunk.choices and hasattr(chunk.choices[0], 'delta') and hasattr(chunk.choices[0].delta, 'tool_calls') and chunk.choices[0].delta.tool_calls is not None:
                     tool_calls = chunk.choices[0].delta.tool_calls
                     
                     # Store tool calls in assistant message
@@ -212,7 +239,7 @@ class Agent:
             response = await acompletion(
                 model=self.model_config['model'],
                 messages=messages,
-                tools=self.tools
+                #tools=self.tools
             )
             
             # Extract and process the response
@@ -477,3 +504,27 @@ class Agent:
         except Exception as e:
             logger.error(f"Error in factual answering: {str(e)}")
             return f"Error processing question: {str(e)}"
+        
+    async def generate_title(self, system_prompt: str, user_message: str) -> str:
+        """Generate a title for a conversation based on the first message."""
+        try:
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message}
+            ]
+            
+            response = await acompletion(
+                model="gpt-4o-mini",
+                base_url="https://models.inference.ai.azure.com",
+                messages=messages,
+                max_tokens=20,  # Short response for titles
+                temperature=0.7
+            )
+            
+            title = response.choices[0].message.content.strip()
+            print(title)
+            return title
+        except Exception as e:
+            logger.error(f"Error generating title: {str(e)}")
+            # Fallback title if generation fails
+            return f"Chat about {user_message[:20]}..."

@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 from app.api import app as fastapi_app
-from core.agent.agent import Agent
+from rag.agent.agent import Agent
 from config.settings import LLM_MODEL_PATH
 
 # Create a global llm_generator instance for testing

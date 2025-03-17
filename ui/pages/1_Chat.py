@@ -107,6 +107,8 @@ def chat_interface():
         with st.chat_message("user"):
             st.markdown(prompt)
 
+        is_first_message = len(st.session_state.messages) == 1
+
         # Process with streaming
         with st.chat_message("assistant"):
             message_placeholder = st.empty()
@@ -159,6 +161,18 @@ def chat_interface():
                             except json.JSONDecodeError:
                                 st.error(f"Invalid response format: {line_text}")
                                 
+                    if is_first_message:
+                        try:
+                            # Generate a title based on the first message
+                            title_url = f"{BACKEND_URL}/api/generate_title/{st.session_state.conversation_id}"
+                            title_response = requests.post(title_url)
+                            if title_response.status_code == 200:
+                                title_data = title_response.json()
+                                if "title" in title_data:
+                                    st.success(f"Created conversation: {title_data['title']}")
+                                st.rerun()  # Refresh to show the new title
+                        except Exception as e:
+                            st.error(f"Error generating title: {str(e)}")                        
             except Exception as e:
                 st.error(f"Connection error: {str(e)}")
 

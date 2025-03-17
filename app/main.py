@@ -6,102 +6,91 @@ from typing import Dict, Any, Optional
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
 from urllib.parse import unquote
 
 from rag.agent.agent import Agent
-from config.settings import LLM_MODEL_PATH
+from app.models.models import (
+    MessageRequest,
+    AgentResponse,
+    HealthResponse,
+    ModelConfigData,
+    ModelConfigResponse
+)
 
-class Message(BaseModel):
-    conversation_id: str
-    content: str
-
-class ModelConfig(BaseModel):
-    model: str = "gpt-4o"
-    
-    class Config:
-        extra = "allow"
-
-# Read model configuration from environment or use defaults
-def get_model_config() -> Dict[str, Any]:
-    """
-    Extract model configuration from environment variables.
-    
-    Returns:
-        Dictionary of model configuration
-    """
-    model_type = os.environ.get("MODEL_TYPE", "openai").lower()
-    
-    config = {
-        "model": os.environ.get("LLM_MODEL", "gpt-4o"),
-    }
-    
-    # Add provider-specific configuration
-    if model_type == "openai":
-        if os.environ.get("OPENAI_API_KEY"):
-            config["api_key"] = os.environ.get("OPENAI_API_KEY")
-        if os.environ.get("OPENAI_API_BASE"):
-            config["api_base"] = os.environ.get("OPENAI_API_BASE")
-            
-    elif model_type == "ollama":
-        # Format: ollama/model_name
-        config["model"] = f"ollama/{os.environ.get('LLM_MODEL', 'llama2')}"
-        if os.environ.get("OLLAMA_API_BASE"):
-            config["api_base"] = os.environ.get("OLLAMA_API_BASE")
-            
-    elif model_type == "anthropic":
-        # Format: anthropic/claude-3-opus
-        if not config["model"].startswith("anthropic/"):
-            config["model"] = f"anthropic/{config['model']}"
-        if os.environ.get("ANTHROPIC_API_KEY"):
-            config["api_key"] = os.environ.get("ANTHROPIC_API_KEY")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
     Initialize LLM generator on startup and cleanup on shutdown.
     """
-    # Initialize LLM generator with configuration
     global agent
-    model_config = get_model_config()
-    agent = Agent(model_config)
+    agent = Agent(model_config={
+        "provider": os.getenv("MODEL_TYPE", "openai").lower(),
+        "model": os.getenv("LLM_MODEL", "gpt-4o"),
+        "api_base": os.getenv("API_BASE", "https://models.inference.ai.azure.com")
+    })
     yield
+    del agent  # Clean up when app shuts down
 
 
 app = FastAPI(lifespan=lifespan)
 
-@app.get("/health")
+@app.get("/health", response_model=HealthResponse)
 async def health_check():
-    """Health check endpoint for Docker."""
-    return {
-        "status": "healthy", 
-        "timestamp": datetime.datetime.now().isoformat(),
-        "model": agent.model_config.get("model", "unknown")
-    }
+    return HealthResponse(
+        status="healthy",
+        timestamp=HealthResponse.now(),
+        model=agent.model_config.get("model", "unknown")
+    )
 
-@app.post('/api/message')
-async def handle_message(message: Message):
-    """
-    Process a message and return the complete response.
-    
-    Args:
-        message: User message with conversation ID and content
-    
-    Returns:
-        Complete response
-    """
+@app.post('/api/generate_title/{conversation_id}')
+async def generate_title(conversation_id: str):
+    """Generate a title for a conversation based on the first message."""
     try:
-        response = await agent.generate_response(
+        # Get the first message from the conversation
+        messages = agent.memory_db.get_messages(conversation_id)
+        if not messages or len(messages) < 1:
+            return {"error": "No messages found in conversation"}
+            
+        # Get the first user message
+        first_user_message = None
+        for role, message, _ in messages:
+            if role == "user":
+                first_user_message = message
+                break
+                
+        if not first_user_message:
+            return {"error": "No user message found"}
+            
+        # Generate a concise title using the LLM
+        system_prompt = "Generate a concise, descriptive title (4-8 words) for a conversation that starts with this message. Return ONLY the title text with no quotes or additional explanation."
+        
+        title = await agent.generate_title(system_prompt, first_user_message)
+        
+        # Update the conversation title in the database
+        success = agent.memory_db.update_conversation_title(conversation_id, title)
+
+        # Log the result for debugging
+        print(f"Title generated: '{title}', update success: {success}")
+        
+        return {"success": success, "title": title}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.post('/api/message', response_model=AgentResponse)
+async def handle_message(message: MessageRequest):
+    try:
+        response_text = await agent.generate_response(
             message.conversation_id,
             message.content
         )
-        
-        return {
-            'conversation_id': message.conversation_id,
-            'message': message.content,
-            'response': response,
-            'timestamp': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        }
+        return AgentResponse(
+            conversation_id=message.conversation_id,
+            message=message.content,
+            response=response_text,
+            timestamp=AgentResponse.now()
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -142,6 +131,22 @@ async def stream_response(conversation_id: str, message: str):
         event_generator(),
         media_type="text/event-stream"
     )
+
+
+@app.post("/api/model_config", response_model=ModelConfigResponse)
+async def set_model_config(config: ModelConfigData):
+    agent.model_config = {
+        "provider": config.provider,
+        "model": config.model,
+        "api_base": config.api_base
+    }
+    return ModelConfigResponse(
+        provider=config.provider,
+        model=config.model,
+        api_base=config.api_base,
+        timestamp=ModelConfigResponse.now()
+    )
+
 
 @app.post('/api/conversation')
 async def create_conversation():
