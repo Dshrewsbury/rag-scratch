@@ -6,15 +6,17 @@ import traceback
 import json
 import os
 from pathlib import Path
+import litellm
 from litellm import acompletion, success_callback, max_budget
 from litellm.utils import trim_messages
+from litellm.caching.caching import Cache
 from typing import Dict, List, Any, AsyncIterator, Optional
 from rag.retrieval.vector_store import VectorStore
 from rag.processing.embedding.embedding_generator import EmbeddingGenerator
 from rag.memory.memory_database import MemoryDatabase
 from config.settings import LLM_MODEL_PATH
 
-# track_cost_callback
+# TODO: relocate/refactor the budget/cache code. Messy atm
 def track_cost_callback(
     kwargs,                 # kwargs to completion
     completion_response,    # response from completion
@@ -40,6 +42,7 @@ agent_dir = Path(__file__).parent
 system_prompt_txt = agent_dir / "system_prompt.txt"
 tools_json = agent_dir / "tools.json"
 
+litellm.cache = Cache(type="redis", host="redis", port="6379", password="myredissecret")
 
 class Agent:
     def __init__(self, model_config=None):
@@ -61,8 +64,6 @@ class Agent:
         self.vector_store = VectorStore()
         self.embedding_generator = EmbeddingGenerator()
         self.memory_db = MemoryDatabase()
-
-        print("HEYO")
         print(self.memory_db.db_path)
 
         # Define tool mapping
@@ -113,7 +114,7 @@ class Agent:
 
             # Get the response stream
             response = await acompletion(
-                model="gpt-4o-mini",
+                model='gpt-4o-mini',
                 base_url="https://models.inference.ai.azure.com",
                 messages=trim_messages(messages, model),
                 stream=True,

@@ -72,5 +72,3 @@ Planned improvements include:
 - Better config setup(sorry)
 - Just
 - Typechecking
-- Caching
-
