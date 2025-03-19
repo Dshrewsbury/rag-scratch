@@ -13,10 +13,15 @@ It includes the following:
 - 🍓 **LiteLLM** – A proxy to call 100+ LLM providers from the OpenAI library.
 - 🔍 **Qdrant** – A vector database for semantic, keyword, and hybrid search.
 - 🚚 **UV** – A project and dependency manager.
+- 🏍️ **Redis** – An in-memory database for semantic caching.
+- 🧹 **Ruff** – A linter and formatter.
+- ✅ **Mypy** – A static type checker.
 - 🧪 **Pytest** – A testing framework.
 - 🏗 **Testcontainers** – A tool to set up integration tests.
+- 📏 **Coverage** – A code coverage tool.
 - 🐳 **Docker** – A tool to containerize the Python application.
 - 🐙 **Compose** – A container orchestration tool for managing the application infrastructure.
+-    **iSort** – isort your imports, so you don't have to.
 
 ##  Prerequisites
 
@@ -58,17 +63,3 @@ With RAG systems, its advisable to start with a simple setup, with evals/basic m
 I've including some very, very basic unit, integration, and e2e tests and integrated them into a CI/CD pipeline via Github Actions. 
 
 I've also included evaluations as well as a synthetic data generation method, but these are ongoing and will be updated shortly.
-
-## Upcoming Work
-
-Planned improvements include:
-
-- Streamlined Evaluation Metrics + Observability
-- Improved Chunking
-- Actual decent automated tests connected to metrics
-- Container/Testing/Deployment that more mimics a production-level scenario
-- Evals for an in production system(Topic Modeling, etc)
-- An actual datapipeline for a real scenario
-- Better config setup(sorry)
-- Just
-- Typechecking

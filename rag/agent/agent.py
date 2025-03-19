@@ -1,25 +1,24 @@
 import asyncio
+import json
 import logging
 import traceback
-import json
 from pathlib import Path
+from typing import Any, AsyncIterator, Dict
+
 import litellm
 from litellm import acompletion
-from litellm.utils import trim_messages
 from litellm.caching.caching import Cache
-from typing import Dict, Any, AsyncIterator
-from rag.retrieval.vector_store import VectorStore
-from rag.processing.embedding.embedding_generator import EmbeddingGenerator
-from rag.memory.memory_database import MemoryDatabase
+from litellm.utils import trim_messages
 from traceloop.sdk import Traceloop  # type: ignore
 from traceloop.sdk.decorators import workflow  # type: ignore
 
+from rag.memory.memory_database import MemoryDatabase
+from rag.processing.embedding.embedding_generator import EmbeddingGenerator
+from rag.retrieval.vector_store import VectorStore
 
-# Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Define paths
 agent_dir = Path(__file__).parent
 system_prompt_txt = agent_dir / "system_prompt.txt"
 tools_json = agent_dir / "tools.json"
@@ -29,30 +28,46 @@ Traceloop.init(disable_batch=True)  # Disable when running locally
 
 
 class Agent:
+    """
+    RAG Agent that manages conversations, tool execution, and LLM interactions.
+
+    This class encapsulates the functionality for a Retrieval-Augmented Generation
+    agent that can answer queries, maintain conversation history, use various tools
+    for retrieval and analysis, and generate both streaming and complete responses.
+
+    Attributes:
+        system_prompt (str): The system prompt used for all LLM interactions
+        tools (list): Available tools defined in JSON format
+        model_config (dict): Configuration for the underlying LLM
+        vector_store (VectorStore): Interface to the vector database for retrieval
+        embedding_generator (EmbeddingGenerator): Creates embeddings for queries
+        memory_db (MemoryDatabase): Stores conversation history and context
+        tool_map (dict): Mapping from tool names to implementation methods
+        conversations (dict): Dictionary of conversation histories by ID
+    """
+
     def __init__(self, model_config=None):
         """
-        Agent encapsulates a system prompt, tool definitions, and tool execution logic
+        Initialize the Agent with system prompt, tools, and required components.
 
         Args:
-            model_config: Configuration for the model (defaults to OpenAI gpt-4o)
+            model_config (dict, optional): Configuration for the LLM model.
+                Defaults to using gpt-4o-mini if not provided.
         """
         self.system_prompt = (
             system_prompt_txt.read_text() if system_prompt_txt.exists() else ""
         )
         self.tools = json.loads(tools_json.read_text()) if tools_json.exists() else []
 
-        # Set default model config if not provided
         self.model_config = model_config or {
             "model": "gpt-4o-mini",
         }
 
-        # Initialize components
         self.vector_store = VectorStore()
         self.embedding_generator = EmbeddingGenerator()
         self.memory_db = MemoryDatabase()
         print(self.memory_db.db_path)
 
-        # Define tool mapping
         self.tool_map = {
             "search": self._search,
             "analyze_document": self._analyze_document,
@@ -60,10 +75,8 @@ class Agent:
             "answer_factual": self._answer_factual,
         }
 
-        # Track conversations
         self.conversations = {}
 
-        # Log initialization
         logger.info(f"Agent initialized with model: {self.model_config.get('model')}")
 
     @workflow(name="general_response")
@@ -71,39 +84,42 @@ class Agent:
         self, conversation_id: str, query: str
     ) -> AsyncIterator[str]:
         """
-        Generate a streaming response for the conversation using LiteLLM's async streaming.
+        Generate a streaming response for the conversation using async streaming.
+
+        This method handles the entire streaming response pipeline including:
+        - Managing conversation history
+        - Generating LLM responses
+        - Detecting and executing tool calls
+        - Streaming tokens back to the caller
 
         Args:
-            conversation_id: ID of the conversation
-            query: User query
+            conversation_id (str): Unique identifier for the conversation
+            query (str): User query text
 
         Yields:
-            Tokens as they are generated
+            str: Response tokens as they are generated from the LLM
+
+        Raises:
+            Exception: If an error occurs during generation, yields an error message
         """
-        # Initialize or get conversation history
         if conversation_id not in self.conversations:
             self.conversations[conversation_id] = []
 
-        # Add user query to conversation history
         self.conversations[conversation_id].append({"role": "user", "content": query})
 
-        # Prepare messages with system prompt and conversation history
         messages = [
             {"role": "system", "content": self.system_prompt},
             *self.conversations[conversation_id],
         ]
 
-        # Initialize assistant message for storing the complete response
         assistant_message: Dict[str, Any] = {"role": "assistant", "content": ""}
 
         try:
-            # Log request
             logger.info(
                 f"Generating streaming response with model: {self.model_config.get('model')}"
             )
             model = self.model_config["model"]
 
-            # Get the response stream
             response = await acompletion(
                 model="gpt-4o-mini",
                 base_url="https://models.inference.ai.azure.com",
@@ -118,7 +134,6 @@ class Agent:
             # Track if we've seen tool calls in this response
             tool_calls_seen = []
 
-            # Iterate through streaming chunks asynchronously
             async for chunk in response:
                 # Process content
                 if (
@@ -135,11 +150,9 @@ class Agent:
                     and hasattr(tool_delta, "tool_calls")
                     and (tool_calls := tool_delta.tool_calls)
                 ):
-                    # Store tool calls in assistant message
                     if "tool_calls" not in assistant_message:
                         assistant_message["tool_calls"] = []
 
-                    # Process each tool call
                     for tool_call in tool_calls:
                         if (
                             not tool_call.get("id")
@@ -150,19 +163,15 @@ class Agent:
                         tool_calls_seen.append(tool_call["id"])
                         assistant_message["tool_calls"].append(tool_call)
 
-                        # Extract tool information
                         tool_name = tool_call["function"]["name"]
                         tool_args = json.loads(tool_call["function"]["arguments"])
 
-                        # Notify user that a tool is being used
                         yield f"\n\n_Using {tool_name} tool..._\n"
 
-                        # Execute tool and get result
                         tool_result = await self.execute_tool(
                             tool_name=tool_name, **tool_args
                         )
 
-                        # Add tool result to messages
                         messages.append(
                             {
                                 "role": "assistant",
@@ -179,10 +188,8 @@ class Agent:
                             }
                         )
 
-                        # Continue the conversation with tool results
                         yield f"\n_Tool result:_\n{tool_result}\n\n"
 
-                        # Start a new completion with the tool results
                         additional_response = await acompletion(
                             model=self.model_config["model"],
                             messages=messages,
@@ -190,7 +197,6 @@ class Agent:
                             tools=self.tools,
                         )
 
-                        # Stream the additional response
                         async for add_chunk in additional_response:
                             if (delta := add_chunk.choices[0].delta) and (
                                 token := delta.content
@@ -198,77 +204,72 @@ class Agent:
                                 assistant_message["content"] += token
                                 yield token
 
-            # Update conversation history with assistant's response
             self.conversations[conversation_id].append(assistant_message)
 
         except Exception as e:
-            # Log the full traceback for debugging
             error_traceback = traceback.format_exc()
             logger.error(f"Error during streaming: {str(e)}\n{error_traceback}")
 
-            # Yield error information to the stream
             error_msg = f"Error during streaming: {str(e)}"
             yield f"\n\n_Error: {error_msg}_"
 
     async def generate_response(self, conversation_id: str, query: str) -> str:
         """
-        Generate a complete non-streaming response.
+        Generate a complete non-streaming response for a conversation.
+
+        This method handles the complete response generation process including:
+        - Conversation history management
+        - LLM response generation
+        - Tool call detection and execution
+        - Response formatting
 
         Args:
-            conversation_id: ID of the conversation
-            query: User query
+            conversation_id (str): Unique identifier for the conversation
+            query (str): User query text
 
         Returns:
-            Complete generated response
+            str: Complete generated response text
+
+        Raises:
+            Exception: Captured and converted to error message in response
         """
-        # Initialize or get conversation history
         if conversation_id not in self.conversations:
             self.conversations[conversation_id] = []
 
-        # Add user query to conversation history
         self.conversations[conversation_id].append({"role": "user", "content": query})
 
-        # Prepare messages with system prompt and conversation history
         messages = [
             {"role": "system", "content": self.system_prompt},
             *self.conversations[conversation_id],
         ]
 
         try:
-            # Log request parameters for debugging
             logger.info(
                 f"Generating complete response with model: {self.model_config.get('model')}"
             )
 
-            # Generate complete response
             response = await acompletion(
                 model=self.model_config["model"],
                 messages=messages,
                 # tools=self.tools
             )
 
-            # Extract and process the response
             response_message = response.choices[0].message
             response_text = response_message.content or ""
 
-            # Check for tool calls
             if hasattr(response_message, "tool_calls") and response_message.tool_calls:
                 tool_results = []
 
-                # Process each tool call
                 for tool_call in response_message.tool_calls:
                     tool_name = tool_call.function.name
                     tool_args = json.loads(tool_call.function.arguments)
 
-                    # Execute tool
                     tool_result = await self.execute_tool(
                         tool_name=tool_name, **tool_args
                     )
 
-                    # Add results to list
                     tool_results.append({"tool": tool_name, "result": tool_result})
 
-                    # Add to conversation history
                     messages.append(
                         {
                             "role": "assistant",
@@ -285,22 +286,18 @@ class Agent:
                         }
                     )
 
-                # Use the updated messages to generate final response
                 final_response = await acompletion(
                     model=self.model_config["model"], messages=messages
                 )
 
-                # Get the final text
                 response_text = final_response.choices[0].message.content
 
-                # Add summary of tools used
                 tools_summary = "\n\n_Tools used:_\n"
                 for result in tool_results:
                     tools_summary += f"- {result['tool']}\n"
 
                 response_text = response_text + tools_summary
 
-            # Add to conversation history
             self.conversations[conversation_id].append(
                 {"role": "assistant", "content": response_text}
             )
@@ -308,11 +305,9 @@ class Agent:
             return response_text
 
         except Exception as e:
-            # Log the full traceback for debugging
             error_traceback = traceback.format_exc()
             logger.error(f"Error generating response: {str(e)}\n{error_traceback}")
 
-            # Return error message with debug info
             response_text = f"Error generating response: {str(e)}"
 
             return response_text
@@ -322,11 +317,14 @@ class Agent:
         Execute a tool by name with the given arguments.
 
         Args:
-            tool_name: Name of the tool to execute
-            **kwargs: Arguments for the tool
+            tool_name (str): Name of the tool to execute
+            **kwargs: Arguments to pass to the tool
 
         Returns:
-            Result of the tool execution
+            str: Result of the tool execution or error message
+
+        Raises:
+            Exception: Captured and converted to error message in return value
         """
         if tool_name not in self.tool_map:
             return f"Error: Tool '{tool_name}' not found"
@@ -344,14 +342,17 @@ class Agent:
 
     async def _search(self, query: str, limit: int = 3) -> str:
         """
-        Search for information in the knowledge base.
+        Search for information in the knowledge base using vector search.
+
+        This method embeds the query, searches the vector store for relevant
+        information, and returns formatted results.
 
         Args:
-            query: Search query
-            limit: Maximum number of results
+            query (str): Search query text
+            limit (int, optional): Maximum number of results to return. Defaults to 3.
 
         Returns:
-            Search results as text
+            str: Formatted search results or error message
         """
         try:
             # Run embedding generation in a thread pool to avoid blocking
@@ -372,7 +373,6 @@ class Agent:
                 ),
             )
 
-            # Extract and return context
             if search_results:
                 results_text = ""
                 for i, row in enumerate(search_results):
@@ -385,19 +385,21 @@ class Agent:
             return "No results found matching your query"
 
         except Exception as e:
-            # Log error but don't fail
             logger.error(f"Error in search: {str(e)}")
             return f"Search error: {str(e)}"
 
     async def _analyze_document(self, text: str) -> str:
         """
-        Extract key information from a document including main topics, entities, and summary.
+        Extract key information from a document text.
+
+        This method uses an LLM to analyze document content, identifying
+        main topics, entities, creating a summary, and extracting key data points.
 
         Args:
-            text: Text to analyze
+            text (str): Document text to analyze
 
         Returns:
-            Analysis results
+            str: Analysis results with main topics, entities, summary, and data points
         """
         try:
             prompt = """
@@ -431,11 +433,14 @@ class Agent:
         """
         Reformulate a user query to be more effective for retrieval.
 
+        This method uses an LLM to rewrite the query to be more
+        specific, concise, and retrieval-friendly.
+
         Args:
-            query: Original query
+            query (str): Original user query
 
         Returns:
-            Improved query
+            str: Improved query or original query on error
         """
         try:
             prompt = """
@@ -471,13 +476,16 @@ class Agent:
 
     async def _answer_factual(self, question: str) -> str:
         """
-        Answer factual questions without needing to search when confident.
+        Answer factual questions directly when confident, without searching.
+
+        This method uses an LLM to determine if it can confidently answer
+        a factual question, or if it should defer to search.
 
         Args:
-            question: Factual question
+            question (str): Factual question to answer
 
         Returns:
-            Answer or indication that search is needed
+            str: Direct answer or indication that search is needed
         """
         try:
             prompt = """
@@ -512,7 +520,16 @@ class Agent:
             return f"Error processing question: {str(e)}"
 
     async def generate_title(self, system_prompt: str, user_message: str) -> str:
-        """Generate a title for a conversation based on the first message."""
+        """
+        Generate a title for a conversation based on the first message.
+
+        Args:
+            system_prompt (str): System prompt to guide title generation
+            user_message (str): First user message in the conversation
+
+        Returns:
+            str: Generated title or fallback title on error
+        """
         try:
             messages = [
                 {"role": "system", "content": system_prompt},

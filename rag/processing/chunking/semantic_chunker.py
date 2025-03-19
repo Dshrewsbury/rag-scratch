@@ -1,13 +1,13 @@
 import uuid
+
 import numpy as np
+from config.settings import BATCH_SIZE, DATA_DIR, EMBEDDING_MODEL_PATH, EMBEDDINGS_DIR
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from llama_cpp import Llama
 from qdrant_client import QdrantClient
-from qdrant_client.models import Distance, VectorParams, PointStruct
+from qdrant_client.models import Distance, PointStruct, VectorParams
 from sklearn.metrics.pairwise import cosine_similarity  # type: ignore
-
-from config.settings import EMBEDDING_MODEL_PATH, DATA_DIR, EMBEDDINGS_DIR, BATCH_SIZE
 
 
 def calculate_cosine_distances(chunk_embeddings):

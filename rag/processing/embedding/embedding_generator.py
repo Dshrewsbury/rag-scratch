@@ -1,5 +1,5 @@
+from config.settings import BATCH_SIZE, EMBEDDING_MODEL_PATH, MAX_TOKENS
 from llama_cpp import Llama
-from config.settings import EMBEDDING_MODEL_PATH, BATCH_SIZE, MAX_TOKENS
 
 
 class EmbeddingGenerator:

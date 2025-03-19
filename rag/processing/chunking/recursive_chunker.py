@@ -1,23 +1,22 @@
+import os
+import re
+import sys
 import time
 import uuid
-import re
+from typing import Any, Dict, List, Optional, Tuple
 
-from typing import List, Dict, Any, Tuple
 import pymupdf4llm  # type: ignore
+import spacy
+from langchain.docstore.document import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from llama_cpp import Llama
 from qdrant_client import QdrantClient
-from qdrant_client.models import Distance, VectorParams, PointStruct
-from langchain.docstore.document import Document
-from typing import Optional
-
-import os
-import sys
-import spacy
+from qdrant_client.models import Distance, PointStruct, VectorParams
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+from config.settings import BATCH_SIZE, DATA_DIR, EMBEDDING_MODEL_PATH
+
 from rag.processing.chunking.utils import chunk
-from config.settings import EMBEDDING_MODEL_PATH, DATA_DIR, BATCH_SIZE
 
 nlp = spacy.load("en_core_web_sm")
 

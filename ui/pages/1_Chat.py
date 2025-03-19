@@ -1,16 +1,30 @@
-import streamlit as st
-import requests  # type: ignore
+"""
+Streamlit frontend for the RAG Chat Assistant application.
+
+This module provides the user interface for interacting with the RAG system,
+including conversation management, message streaming, and chat history display.
+"""
 import json
 import os
 from urllib.parse import quote
+
+import requests  # type: ignore
+import streamlit as st
 
 # Get the backend URL from environment or use default
 BACKEND_URL = os.environ.get("BACKEND_URL", "http://localhost:8000")
 
 
 def chat_interface():
-    """Main chat interface for interacting with the RAG system."""
-
+    """
+    Main chat interface for interacting with the RAG system.
+    
+    Provides functionality for:
+    - Creating, selecting, and deleting conversations
+    - Displaying chat history
+    - Sending messages and receiving streaming responses
+    - Generating conversation titles automatically
+    """
     # Initialize chat session state
     if "messages" not in st.session_state:
         st.session_state.messages = []
@@ -41,7 +55,7 @@ def chat_interface():
 
         # List existing conversations
         for conv in conversations:
-            col1, col2 = st.columns([4, 1])  # Adjust ratio as needed
+            col1, col2 = st.columns([4, 1])
 
             # Conversation button in first column
             with col1:
@@ -66,7 +80,6 @@ def chat_interface():
                 with confirm_col1:
                     if st.button("Confirm delete", key=f"confirm_yes_{conv['id']}"):
                         try:
-                            # Make DELETE request to backend
                             response = requests.delete(
                                 f"{BACKEND_URL}/api/conversation/{conv['id']}"
                             )
@@ -130,7 +143,6 @@ def chat_interface():
                         st.error(f"Error: Received status code {response.status_code}")
                         return
 
-                    # Process the streaming response
                     for line in response.iter_lines():
                         if not line:
                             continue
@@ -187,7 +199,12 @@ def chat_interface():
 
 
 def main():
-    """Initialize the Streamlit app."""
+    """
+    Initialize the Streamlit app with the chat interface.
+    
+    Displays the application title, attempts to fetch and show model information,
+    and then renders the main chat interface.
+    """
     st.title("RAG Chat Assistant")
 
     # Show model information
@@ -199,6 +216,7 @@ def main():
     except requests.RequestException as e:
         st.caption("Connected to RAG backend")
         print(f"Failed to get model info: {e}")
+        
     # Display the chat interface
     chat_interface()
 

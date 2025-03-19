@@ -1,13 +1,12 @@
+import os
 import sqlite3
 import uuid
-from typing import Optional, Any, Dict
 from datetime import datetime
-from typing import List
-import os
+from typing import Any, Dict, List, Optional
 
+from config.settings import CHAT_DB_PATH, EMBEDDINGS_DIR
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import PointStruct
-from config.settings import CHAT_DB_PATH, EMBEDDINGS_DIR
 
 
 class MemoryDatabase:

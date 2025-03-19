@@ -1,8 +1,8 @@
-from qdrant_client import QdrantClient
-from qdrant_client.models import PointStruct, Distance, VectorParams
-import uuid
 import logging
+import uuid
 
+from qdrant_client import QdrantClient
+from qdrant_client.models import Distance, PointStruct, VectorParams
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
