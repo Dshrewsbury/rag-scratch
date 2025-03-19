@@ -1,8 +1,9 @@
 import streamlit as st
 
+
 def main():
     st.title("About")
-    
+
     st.write("""
     ## AI Chat Assistant
     
@@ -24,6 +25,7 @@ def main():
     ### Version
     1.0.0
     """)
+
 
 if __name__ == "__main__":
     main()

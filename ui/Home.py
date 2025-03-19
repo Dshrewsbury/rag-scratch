@@ -1,8 +1,9 @@
 import streamlit as st
 
+
 def main():
     st.title("AI Chat Assistant")
-    
+
     st.write("""
     Welcome to the AI Chat Assistant! This application provides:
     
@@ -16,14 +17,15 @@ def main():
     - Settings: Configure your chat settings
     - About: Learn more about the application
     """)
-    
+
     # Add some example features or quick start buttons
     st.subheader("Quick Start")
     if st.button("Start New Chat"):
         st.switch_page("pages/1_Chat.py")
-    
+
     if st.button("Configure Settings"):
         st.switch_page("pages/2_Settings.py")
 
+
 if __name__ == "__main__":
-    main() 
+    main()
