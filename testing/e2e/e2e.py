@@ -12,18 +12,18 @@ app.api.llm_generator = llm_generator
 
 client = TestClient(fastapi_app)
 
-def test_send_message(compose):
+def test_stream_response():
     # Create a conversation first
     response = client.post("/api/conversation")
     conversation_id = response.json()["conversation_id"]
     
-    # Test sending a message
-    response = client.post(
-        "/api/message", 
-        json={
-            "conversation_id": conversation_id,
-            "content": "Hello, world!"
-        }
-    )
+    # Test streaming a response
+    response = client.get(f"/api/stream/{conversation_id}/Hello%20world")
+    
+    # Check it's a streaming response
     assert response.status_code == 200
-    assert response.json()["message"] == "Hello, world!"
+    assert response.headers["content-type"] == "text/event-stream"
+    
+    # Parse the response content
+    content = response.content.decode()
+    assert "data:" in content

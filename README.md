@@ -5,7 +5,7 @@ This repository contains a Python program that
 exposes a RAG pipeline via FastAPI. It is designed to serve as a reference implementation
 for AI applications. A lot of things such as recursive chunking or naive semantic search are implemented and are clearly not the ideal way of doing things. It's meant to be a basic reference for those starting off with RAG. So many Medium articles are just thrown together Langchain tutorials that provide no actual benefit towards learning of actual RAG concepts.
 
-The project is implemented without the use of any LLM framework. The best Frameworks in this field are changing rapidly and many(I'm looking at you Langchain) have quickly gone out of control with countless abstractions and poor documentation. It's often best to fit your chunking, retrieval, and generation to your specific problem and frameworks all to often get in the way of that. Plus this is a great way to learn something. Once you've done it from scratch it's no problem to quickly pick up a framework if needed.
+The project is implemented without the use of any LLM framework. The best Frameworks in this field are changing rapidly and many(I'm looking at you Langchain) have quickly gone out of control with countless abstractions and poor documentation. It's often best to fit your chunking, retrieval, and generation to your specific problem and frameworks all too often get in the way of that. Plus this is a great way to learn something. Once you've done it from scratch it's no problem to quickly pick up a framework if needed.
 
 It includes the following:
 

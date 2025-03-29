@@ -213,6 +213,7 @@ class Agent:
             error_msg = f"Error during streaming: {str(e)}"
             yield f"\n\n_Error: {error_msg}_"
 
+    # Currently just used for testing -> so not realistic?
     async def generate_response(self, conversation_id: str, query: str) -> str:
         """
         Generate a complete non-streaming response for a conversation.

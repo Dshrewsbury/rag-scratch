@@ -1,19 +1,21 @@
 import pytest
 
-def test_generate_response(llm_generator):
-    """Test that generate_response creates tokens and updates state"""
-    # Define test data
-    conversation_id = "test-conversation"
+@pytest.mark.asyncio
+async def test_generate_response_stream(llm_generator):
+    """Test that generate_response_stream yields tokens properly"""
+    conversation_id = "test-stream-conversation"
     query = "Tell me about RAG systems"
     
-    # Call the method
-    llm_generator.generate_response(conversation_id, query)
+    # Collect tokens from the stream
+    tokens = []
+    async for token in llm_generator.generate_response_stream(conversation_id, query):
+        tokens.append(token)
     
-    # Verify state was updated correctly
-    assert conversation_id in llm_generator.generations
-    assert llm_generator.generations[conversation_id]["is_complete"]
-    assert len(llm_generator.generations[conversation_id]["tokens"]) > 0
-    assert llm_generator.generations[conversation_id]["final_response"] != ""
+    # Verify tokens were returned
+    assert len(tokens) > 0
+    # Verify conversation was saved to memory
+    messages = llm_generator.memory_db.get_messages(conversation_id)
+    assert any(m["role"] == "user" and m["content"] == query for m in messages)
 
 
 def test_update_memory(llm_generator):

@@ -4,6 +4,9 @@ RAG-powered API server that provides conversational AI capabilities.
 This FastAPI application integrates with a RAG (Retrieval-Augmented Generation) agent
 to provide conversational capabilities via a RESTful API. The application supports
 streaming responses, conversation management, and model configuration.
+
+ATM this is coupled with the Agent class. If the service were to grow/scale adding a
+service layer would be beneficial
 """
 
 import datetime

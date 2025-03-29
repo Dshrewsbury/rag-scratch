@@ -24,7 +24,7 @@ def test_llm_generator_with_vector_store(llm_generator):
     llm_generator._retrieve_context = mock_retrieve
     
     # Execute generation
-    llm_generator.generate_response(conversation_id, query)
+    llm_generator.generate_response_stream(conversation_id, query)
     
     # Give it time to process
     time.sleep(1)

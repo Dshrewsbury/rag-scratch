@@ -22,7 +22,6 @@ services:
       - REDIS_PASSWORD=${REDIS_PASSWORD}
       - REDIS_URL=${REDIS_URL}
     depends_on:
-      #- litellm
       - redis
       - qdrant
 
